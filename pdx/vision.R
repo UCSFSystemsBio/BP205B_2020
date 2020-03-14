@@ -71,6 +71,13 @@ colnames(pdx_exprmat) <- 1:ncol(pdx_exprmat)
 pdx_umap <- h5read_umap('/wynton/scratch/bp205/processed/PDX_adata.h5ad')
 rownames(pdx_umap) <- 1:ncol(pdx_exprmat)
 
+##  Checkign normalized gene distributions
+
+hist(pdx_exprmat['LY6D',],breaks=100)
+
+
+
+
 ## Load and generate the signature files
 hcc_mk_DE_results <- list.files('/wynton/scratch/bp205/signatures/BP205B_2020/DE/HCC_MK/FINAL/',
                                 recursive = T,full.names = T,pattern = '.csv')

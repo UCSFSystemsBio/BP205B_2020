@@ -22,18 +22,19 @@ load_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
     
     sigSets <- unlist(lapply(c(0,1,2),function(thresh){
       fold_data <- sigData[abs(gmt$logfoldchange)>=thresh & matched]
-      if(abs){
+      
+      ## If the metagene is all -1s, then flip to positive
+      if(abs && all(fold_data==-1)){
         fold_data <- abs(fold_data)
       }
+      
       sig_set_name <- paste0(dataset,'_',filenames[f],'_FC_',thresh)
       
       a <- fold_data
-      
       retlist <- list(a)
       names(retlist) <- sig_set_name
-      
-      
       return(retlist)
+      
     }),recursive = F)
     return(sigSets)
   }),recursive = F)
@@ -77,7 +78,10 @@ read_metabric_metadata <- function(censor = 120){
            vital_status = ifelse(vital_status=='Died of Disease',1,0),
            vital_status = ifelse(overall_survival_months>censor,0,vital_status),
            overall_survival_months = ifelse(overall_survival_months>censor,censor,overall_survival_months),
-           overall_survival_years = overall_survival_months/12)
+           overall_survival_years = overall_survival_months/12,
+           Subtype = factor(`Pam50 + Claudin-low subtype`,levels =  c('Normal','Basal','Her2','LumA','LumB','claudin-low','NC')),
+           Cellularity = factor(Cellularity,levels=c('low','moderate','high'))
+           )
   return(metadata)
 }
 
@@ -98,8 +102,7 @@ select_and_score_metagene <- function(df,metagene,facets=c()){
     select_at(vars(c(genes,facets))) %>%
     pivot_longer(all_of(genes)) %>%
     group_by_at(vars(facets)) %>%
-    summarize(activation=sum(value)) %>%
-    
+    summarize(activation=sum(sign[name]*value)) %>%
     #summarize(activation=sum(value*sign[name])) %>%
     ungroup %>% mutate_at(vars(added_facets),as.factor)
   return(scored)
@@ -121,7 +124,7 @@ stratify_activation <- function(df,ntiles=2,threshold=T){
       return(pv)
     }))
     final_threshold <-thresholds[which.max(-log10(pvals))]
-    strata <- factor(ifelse(df$activation>final_threshold,'High','Low'),levels=c('High','Low'))
+    strata <- factor(ifelse(df$activation>final_threshold,'High','Low'),levels=c('Low','High'))
     
   }else if(ntiles==3){
     strata <- factor(c('Hi','Med','Lo')[dplyr::ntile(df$activation,n_tiles)],levels=c('Lo','Med','Hi'))
@@ -150,34 +153,36 @@ score_stratify_fit_metagene <- function(df,metagene_name,metagene,ntiles=2,thres
   ## Generate the dataset by scoring the metagene
   test <- df %>%
     select_and_score_metagene(metagene,facets=other_facets) %>%
-    stratify_activation(ntiles = ntiles,threshold = threshold)
-  rm(df)
-  ## Run Kaplan-Meir analysis
+    stratify_activation(ntiles = 2,threshold = T)
   
-  message('Running surviavl analysis')
+  ## Run Kaplan-Meir analysis
+  message('Running survival analysis')
   km_fit <- survminer::surv_fit(survival::Surv(overall_survival_years, vital_status) ~ strata, data=test)
+  km_summary <- summary(coxph(Surv(overall_survival_years, vital_status) ~ strata,data=test))
+  #km_summary$coefficients[2]
   km_pval <- c(survminer::surv_pvalue(km_fit)$pval,
-               summary(coxph(Surv(overall_survival_years, vital_status) ~ strata,data=test))$coef[2],
+               km_summary$conf.int[c(3,1,4)],
                km_fit$n)
-  names(km_pval) <- c('pval_KM','HZ_KM','n_low','n_high')
+  names(km_pval) <- c('KM_pval','KM_HZ_0.95_lower','KM_HZ','KM_HZ_0.95_upper','n_low','n_high')
   
   km_plt <- arrange_ggsurvplots(list(ggsurvplot(km_fit,
-                                                pval=T,conf.int = T,risk.table = T,palette = 'Dark2',risk.table.col='strata')),
+                                                pval=T,conf.int = T,risk.table = T,color = 'strata',palette = c('#3BA805','#E8634A'),data = test)),
                                 print=FALSE,ncol=1,nrow=1
   )
   ggsave(plot = km_plt,filename = km_plot_path,width = 8,height = 6)
   
-  # message('Running cox fit')
-  cox_fit <- coxph(Surv(overall_survival_years, vital_status) ~ strata +`Chemotherapy` + `Pam50 + Claudin-low subtype`, data=test,model = T)
+  ## Run COX anlaysis using continous activation as covariate
+  message('Running cox fit')
+  cox_fit <- coxph(Surv(overall_survival_years, vital_status) ~ activation +`Chemotherapy` + Subtype + Cellularity, data=test,model = T)
   cox_pval <- c(summary(cox_fit)$coef[,c(2,5)],recursive=T)
-  names(cox_pval) <- c(paste0('HZ_',rownames(summary(cox_fit)$coef)),paste0('pval_',rownames(summary(cox_fit)$coef)))
-
+  names(cox_pval) <- c(paste0('Cox_HZ_',rownames(summary(cox_fit)$coef)),paste0('Cox_pval_',rownames(summary(cox_fit)$coef)))
   cox_plt <- suppressWarnings(ggforest(cox_fit,data=test))
+  
   ggsave(plot = cox_plt,filename = hazard_plot_path, width=10,height=7)
-
+  
+  ## aggegate result
   result <- c(km_pval,cox_pval)
   rm(test)
-  ## Run Factor analysis
   return(result)
 }
 
@@ -199,52 +204,65 @@ mda_sig_set <- load_signature_set('MDA',mda_DE_results,colnames(df),abs = T)
 all_sig_set <- c(mda_sig_set,hcc_sig_set)
 all_sig_set <- all_sig_set[sapply(all_sig_set,length) != 0]
 
-other_facets <- c('Cancer Type' , 'Cellularity' , 'Chemotherapy' ,'ER Status' , 'HER2 Status' , 'PR Status','Tumor Stage' , 'Age at Diagnosis' , 'Pam50 + Claudin-low subtype')
+other_facets <- c('Cancer Type' , 'Cellularity' , 'Chemotherapy' ,'ER Status' , 'HER2 Status' , 'PR Status','Tumor Stage' , 'Age at Diagnosis' , 'Subtype')
 
 outdir <- '/wynton/home/students/snanda/rds/bp205/analysis/survival/results/'
 
 rm(data,hcc_sig_set,mda_sig_set,metadata)
 
+###############################
+
 models <-parallel::mcmapply(FUN=score_stratify_fit_metagene,
-       metagene_name=names(all_sig_set),
-       metagene = all_sig_set,
-       ntiles=2,threshold=T,outdir = outdir,SIMPLIFY = F,
-       MoreArgs = list(df=df,other_facets = other_facets),mc.cores = 25)
+                            metagene_name=names(all_sig_set),
+                            metagene = all_sig_set,
+                            ntiles=2,threshold=T,outdir = outdir,SIMPLIFY = F,
+                            MoreArgs = list(df=df,other_facets = other_facets),mc.cores = 25)
 
-
-models_df <- as_tibble(rownames_to_column(as.data.frame(do.call(rbind,models)))) %>% arrange(desc(HZ_KM))
+models_df <- as_tibble(rownames_to_column(as.data.frame(do.call(rbind,models)))) %>% arrange(desc(KM_HZ))
 colnames(models_df)[1] <- 'signature'
-
 data.table::fwrite(models_df,paste0(outdir,'survival_results.csv'),sep = ',')
 
 
 
-# facet_boxplot <- function(df,facet){
-#   f <- ensym(facet)
-#   colors <- c("#DA6162","#0C9D8B","#98BE37","#005C9A","#C291EE","#CD9849","#2FAD29","#002B95","#E579C6","#00899D")
-#   active_colors <- colors[1:length(unique(df[[facet]]))]
-#   
-#   test <- kruskal.test(as.formula(paste0('activation ~ `',facet,'`')),data = df)
-#   
-#   plt <- df %>% filter(!is.na(!! f)) %>%
-#     ggplot(aes(x=!! f,y=activation,fill=!! f))+geom_boxplot()+
-#     scale_fill_manual(values = active_colors)+
-#     annotate('text',-Inf, Inf,label=paste0('p = ',round(test$p.value,5)),hjust=-0.2,vjust=2)+
-#     theme_bw(30) + 
-#     labs(x=facet,y='Activation')+ggtitle(paste0(facet))+
-#     theme(text = element_text(size=11), panel.background = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank())
-#   
-#   return(plt)
-# }
-# 
-# 
-# active_facets <- names(which(sapply(test,is.factor)))
-# plts <- lapply(active_facets,facet_boxplot,df=test)
-# 
-# grobs_arranged <- do.call(grid.arrange, c(plts, ncol=4))
-# 
 
 
+
+
+
+# metagene <- all_sig_set$MDA_0_vs_proxy_parental_UP_FC_0
+# ## Generate the dataset by scoring the metagene
+# test <- df %>%
+#   select_and_score_metagene(metagene,facets=other_facets) %>%
+#   stratify_activation(ntiles = 2,threshold = T)
+# 
+# ## Run Kaplan-Meir analysis
+# message('Running surviavl analysis')
+# km_fit <- survminer::surv_fit(survival::Surv(overall_survival_years, vital_status) ~ strata, data=test)
+# km_summary <- summary(coxph(Surv(overall_survival_years, vital_status) ~ strata,data=test))
+# #km_summary$coefficients[2]
+# km_pval <- c(survminer::surv_pvalue(km_fit)$pval,
+#                km_summary$conf.int[c(3,1,4)],
+#              km_fit$n)
+# names(km_pval) <- c('KM_pval','KM_HZ_0.95_lower','KM_HZ','KM_HZ_0.95_upper','n_low','n_high')
+# 
+# km_plt <- arrange_ggsurvplots(list(ggsurvplot(km_fit,
+#                                               pval=T,conf.int = T,risk.table = T,color = 'strata',palette = c('#3BA805','#E8634A'),data = test)),
+#                               print=FALSE,ncol=1,nrow=1
+# )
+# 
+# ggsave(plot = km_plt,filename = km_plot_path,width = 8,height = 6)
+# 
+# # message('Running cox fit')
+# cox_fit <- coxph(Surv(overall_survival_years, vital_status) ~ activation +`Chemotherapy` + Subtype + Cellularity, data=test,model = T)
+# cox_pval <- c(summary(cox_fit)$coef[,c(2,5)],recursive=T)
+# names(cox_pval) <- c(paste0('Cox_HZ_',rownames(summary(cox_fit)$coef)),paste0('Cox_pval_',rownames(summary(cox_fit)$coef)))
+# 
+# cox_plt <- suppressWarnings(ggforest(cox_fit,data=test))
+# 
+# ggsave(plot = cox_plt,filename = hazard_plot_path, width=10,height=7)
+# 
+# result <- c(km_pval,cox_pval)
+# rm(test)
 # process_metagene <- function(metagene,refset){
 #   if(is.character(metagene)){
 #     genes <- metagene[metagene %in% refset]
