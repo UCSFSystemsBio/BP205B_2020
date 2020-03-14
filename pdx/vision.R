@@ -16,7 +16,9 @@ create_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
     
     sigSets <- unlist(lapply(c(0,1,2),function(thresh){
       fold_data <- sigData[abs(gmt$logfoldchange)>=thresh & matched]
-      if(abs){
+     
+      ## If the metagene is all -1s, then flip to positive
+      if(abs && all(fold_data==-1)){
         fold_data <- abs(fold_data)
       }
       sig_set_name <- paste0(dataset,'_',filenames[f],'_FC_',thresh)
@@ -25,7 +27,6 @@ create_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
 
       retlist <- list(a)
       names(retlist) <- sig_set_name
-  
       
       return(retlist)
     }))
@@ -56,9 +57,10 @@ h5read_umap <- function(h5path){
 }
 
 ## read in the data
-pdx_exprmat <- h5read('/wynton/scratch/bp205/processed//PDX_normalized_adata.h5ad')
-# norm.factor = median(colSums(pdx_exprmat))
-# pdx_exprmat <- t( t(pdx_exprmat) / colSums(pdx_exprmat)) * norm.factor
+pdx_exprmat <- h5read('/wynton/scratch/bp205/processed//PDX_adata.h5ad')
+## Median normalization
+norm.factor = median(colSums(pdx_exprmat))
+pdx_exprmat <- t( t(pdx_exprmat) / colSums(pdx_exprmat)) * norm.factor
 
 pdx_meta <- as.data.frame(data.table::fread('/wynton/scratch/bp205/processed/PDX_adata_R/obs.csv',sep = ','))
 pdx_meta$SampleType <- factor(pdx_meta$SampleType,levels = paste0('Sample',1:26))
@@ -72,11 +74,6 @@ pdx_umap <- h5read_umap('/wynton/scratch/bp205/processed/PDX_adata.h5ad')
 rownames(pdx_umap) <- 1:ncol(pdx_exprmat)
 
 ##  Checkign normalized gene distributions
-
-hist(pdx_exprmat['LY6D',],breaks=100)
-
-
-
 
 ## Load and generate the signature files
 hcc_mk_DE_results <- list.files('/wynton/scratch/bp205/signatures/BP205B_2020/DE/HCC_MK/FINAL/',

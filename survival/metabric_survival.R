@@ -173,7 +173,8 @@ score_stratify_fit_metagene <- function(df,metagene_name,metagene,ntiles=2,thres
   
   ## Run COX anlaysis using continous activation as covariate
   message('Running cox fit')
-  cox_fit <- coxph(Surv(overall_survival_years, vital_status) ~ activation +`Chemotherapy` + Subtype + Cellularity, data=test,model = T)
+  test$activation_Z <- c(scale(test$activation))
+  cox_fit <- coxph(Surv(overall_survival_years, vital_status) ~ activation_Z +`Chemotherapy` + Subtype + Cellularity, data=test,model = T)
   cox_pval <- c(summary(cox_fit)$coef[,c(2,5)],recursive=T)
   names(cox_pval) <- c(paste0('Cox_HZ_',rownames(summary(cox_fit)$coef)),paste0('Cox_pval_',rownames(summary(cox_fit)$coef)))
   cox_plt <- suppressWarnings(ggforest(cox_fit,data=test))
