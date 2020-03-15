@@ -90,11 +90,11 @@ pdx_vis <- VISION::Vision(data=pdx_exprmat,
                           signatures=all_DE_signatures,
                           sig_gene_threshold=0.005,
                           meta=pdx_meta,projection_methods=c('UMAP','tSNE30'),
-                          pool=FALSE,name='PDX_agg_sizefactor_norm')
+                          pool=FALSE,name='PDX_agg_med_norm_all')
 
 pdx_vis_result <- VISION::analyze(pdx_vis)
-pdx_vis_result<- addProjection(pdx_vis_result,"UMAP",pdx_umap)
-save(pdx_vis_result,file = '/wynton/home/students/snanda/rds/bp205/analysis/pdx/PDX_agg_sizefactor_norm.rda',version = 2)
+pdx_vis_result<- addProjection(pdx_vis_result,"UMAP2",pdx_umap)
+save(pdx_vis_result,file = '/wynton/home/students/snanda/rds/bp205/analysis/pdx/PDX_agg_med_norm_all.rda',version = 2)
 
 
 # load('/wynton/home/students/snanda/rds/bp205/analysis/pdx/PDX_agg_sizefactor_norm.rda')

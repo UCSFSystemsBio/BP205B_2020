@@ -4,7 +4,7 @@ VISION genrates a web interface with a representation of single cell data, as we
 
 VISION also conducts a test for locality - that is, asking whether a specific signature enriched in a specific cluster of cells. 
 
-There are 4 VISION result objects here. To use them, first untar / gzip them with tar -xvf file.rda.tar.gz.
+There is VISION result object here (new and improved with 100% less mouse). To use it, first untar / gzip them with tar -xvf file.rda.tar.gz.
 
 Then, follow the file launch_vision.R to install VISION and load the interface.
 
@@ -18,10 +18,13 @@ load('/path/to/object.rda')
 
 VISION::viewResults(object = pdx_vis_result,port=8787,browser= T)
 ``` 
-The four files are as follows:
-- PDX_agg_med_norm.rda : PDX data that has been median normalized, where the activity of DOWN signatures is multiplied by -1
-- PDX_agg_med_norm_inv.rda :  PDX data that has been median normalized, where the activity of DOWN signatures is the absolute value, NOT multiplied by -1
-- PDX_agg_med_norm.rda : PDX data that has been	size-factor normalized (per cell), where the activity of DOWN signatures is multiplied by -1
-- PDX_agg_med_norm_inv.rda :  PDX data that has been size-factor normalized (per cell), where the activity of DOWN signatures is the absolute value, NOT multiplied by -1
 
-Based on Hani + Matt's suggestion, we should use **PDX_agg_med_norm_inv.rda**
+Based on Hani + Matt's suggestion, we should use **PDX_agg_med_norm_all.rda**
+
+Note: The same convention for determining signature activity is used here - UP and DOWN signatures are scored by aggregating expression, but for signatures that have both UP and DOWN components, activity is determined as UP + -1*DOWN, to remove any anticorrelations. 
+
+Additionally, cells were labeled using the KNN approach with 10 neighbors, to yield a subtype:
+- LM-L (True Mets)
+- LM-H (Mets surrounded by parentals)
+- p-L (True parentals)
+- p-H (parentals surrounded by Mets).
