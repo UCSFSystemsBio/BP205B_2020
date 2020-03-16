@@ -1,0 +1,4 @@
+Barcode	Sample
+TCCCCTTT	Parental
+CTCGGAAT	LM2-B
+GGCCGGTT	LM2-C
