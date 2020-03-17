@@ -24,7 +24,7 @@ Based on Hani + Matt's suggestion, we should use **PDX_agg_med_norm_all.rda**
 Note: The same convention for determining signature activity is used here - UP and DOWN signatures are scored by aggregating expression, but for signatures that have both UP and DOWN components, activity is determined as UP + -1*DOWN, to remove any anticorrelations. 
 
 Additionally, cells were labeled using the KNN approach with 10 neighbors, to yield a subtype:
-- LM-L (True Mets)
-- LM-H (Mets surrounded by parentals)
+- LM-H (True Mets)
+- LM-L (Mets surrounded by parentals)
 - p-L (True parentals)
 - p-H (parentals surrounded by Mets).
