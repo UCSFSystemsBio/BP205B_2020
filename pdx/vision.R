@@ -97,7 +97,6 @@ pdx_vis_result<- addProjection(pdx_vis_result,"UMAP2",pdx_umap)
 save(pdx_vis_result,file = '/wynton/home/students/snanda/rds/bp205/analysis/pdx/PDX_agg_med_norm_all.rda',version = 2)
 
 
-# load('/wynton/home/students/snanda/rds/bp205/analysis/pdx/PDX_agg_sizefactor_norm.rda')
 VISION::viewResults(pdx_vis_result)
 
 
