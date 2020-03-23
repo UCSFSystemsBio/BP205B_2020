@@ -102,13 +102,13 @@ stratify_activation <- function(df,ntiles=2,threshold=T){
 score_stratify_fit_metagene <- function(df,metagene_name,metagene,ntiles=2,threshold=T,other_facets,outdir){
   print(metagene_name)
   # Create the directories if not present
-  lapply(c('km_plots','factor_plots','hazard'),function(path){
+  lapply(c('km_plots','result_out','hazard_plots'),function(path){
     dir.create(paste0(outdir,'/',path,'/'),showWarnings = F)
     return(NULL)
   })
 
   km_plot_path <- paste0(outdir,'/km_plots/',metagene_name,'_km_plot.pdf')
-  factor_plot_path <- paste0(outdir,'/factor_plots/',metagene_name,'_factor_plot.pdf')
+  result_out_path <- paste0(outdir,'/result_out/',metagene_name,'_result_out.csv')
   hazard_plot_path <- paste0(outdir,'/hazard_plots/',metagene_name,'_hazard_plot.pdf')
   
   ## Generate the dataset by scoring the metagene
@@ -144,6 +144,8 @@ score_stratify_fit_metagene <- function(df,metagene_name,metagene,ntiles=2,thres
   
   ## aggegate result
   result <- c(km_pval,cox_pval)
+  write.table(result,file=result_out_path,sep = ',')
+  
   rm(test)
   return(result)
 }
@@ -166,9 +168,9 @@ mda_sig_set <- load_signature_set('MDA',mda_DE_results,colnames(df),abs = T)
 all_sig_set <- c(mda_sig_set,hcc_sig_set)
 all_sig_set <- all_sig_set[sapply(all_sig_set,length) != 0]
 
-# f <- list.files('/wynton/home/students/snanda/rds/bp205/analysis/survival/results/km_plots/') %>% str_replace('_km_plot\\.pdf','')
+f <- list.files('/wynton/home/students/snanda/rds/bp205/analysis/survival/results/result_out//') %>% str_replace('_result_out\\.csv','')
 # 
-# all_sig_set <- all_sig_set[!(names(all_sig_set) %in% f)]
+all_sig_set <- all_sig_set[!(names(all_sig_set) %in% f)]
 
 
 other_facets <- c('Cancer Type' , 'Cellularity' , 'Chemotherapy' ,'ER Status' , 'HER2 Status' , 'PR Status','Tumor Stage' , 'Age at Diagnosis' , 'Subtype')
@@ -211,13 +213,20 @@ rm(data,hcc_sig_set,mda_sig_set,metadata)
 # 
 ###############################
 
-models <-parallel::mcmapply(FUN=score_stratify_fit_metagene,
+models <-mapply(FUN=score_stratify_fit_metagene,
                             metagene_name=names(all_sig_set),
                             metagene = all_sig_set,
                             ntiles=2,threshold=T,outdir = outdir,SIMPLIFY = F,
-                            MoreArgs = list(df=df,other_facets = other_facets),mc.cores = 9)
+                            MoreArgs = list(df=df,other_facets = other_facets))
 
-models_df <- as_tibble(rownames_to_column(as.data.frame(do.call(rbind,models)))) %>% arrange(desc(KM_HZ))
-colnames(models_df)[1] <- 'signature'
+models_files <- list.files('/wynton/home/students/snanda/rds/bp205/analysis/survival/results/result_out//',full.names = T)
+
+models_read <- do.call(cbind,lapply(models_files,function(d){
+  read.table(d,header = T,sep = ',')
+}))
+
+colnames(models_read) <- str_remove(basename(models_files),'_result_out\\.csv')
+models_df <- t(models_read) %>% as.data.frame %>% rownames_to_column() %>% dplyr::rename(signature=rowname)
+
 data.table::fwrite(models_df,paste0(outdir,'survival_results.csv'),sep = ',')
 
