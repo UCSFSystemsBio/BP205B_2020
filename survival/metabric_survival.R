@@ -1,45 +1,6 @@
-library(data.table)
-library(tidyverse)
-library(MASS)
-library(ggplot2)
-library(gridExtra)
-library(readxl)
+source('/wynton/home/students/snanda/rds/bp205/analysis/common_functions.R')
 library(survival)
 library(survminer)
-library(ranger)
-library(HGNChelper)
-
-load_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
-  filenames <- stringr::str_sub(basename(DE_results),1,-5)
-  
-  allSigSets <- unlist(lapply(1:length(DE_results),function(f){
-    gmt <- data.table::fread(DE_results[f],sep=',')
-    sigData <- sign(gmt$logfoldchange)
-    names(sigData) <- gmt$genes
-    matched <- names(sigData) %in% ref_gene_set
-    
-    print(paste0('Unmatched ',f,' ',filenames[f],' ',sum(!matched)/nrow(gmt)))
-    
-    sigSets <- unlist(lapply(c(0,1,2),function(thresh){
-      fold_data <- sigData[abs(gmt$logfoldchange)>=thresh & matched]
-      
-      ## If the metagene is all -1s, then flip to positive
-      if(abs && all(fold_data==-1)){
-        fold_data <- abs(fold_data)
-      }
-      
-      sig_set_name <- paste0(dataset,'_',filenames[f],'_FC_',thresh)
-      
-      a <- fold_data
-      retlist <- list(a)
-      names(retlist) <- sig_set_name
-      return(retlist)
-      
-    }),recursive = F)
-    return(sigSets)
-  }),recursive = F)
-  return(allSigSets)
-}
 
 read_metabric_data <- function(fix_names=F){
   data <- fread('/wynton/scratch/bp205/METABRIC/METABRIC_MedCen_Collapsed_GEOannot(n=1992).merge.txt')
@@ -70,7 +31,7 @@ read_metabric_data <- function(fix_names=F){
 
 read_metabric_metadata <- function(censor = 120){
   metadata <- readxl::read_excel('/wynton/scratch/bp205/METABRIC/brca_metabric_clinical_data.xlsx') %>%
-    rename(patient=`Patient ID`,sampleID=`Sample ID`,
+    dplyr::rename(patient=`Patient ID`,sampleID=`Sample ID`,
            vital_status = `Patient's Vital Status`,
            overall_survival_months=`Overall Survival (Months)`) %>%
     mutate(patient= str_replace(patient,'-',''),
@@ -205,19 +166,56 @@ mda_sig_set <- load_signature_set('MDA',mda_DE_results,colnames(df),abs = T)
 all_sig_set <- c(mda_sig_set,hcc_sig_set)
 all_sig_set <- all_sig_set[sapply(all_sig_set,length) != 0]
 
+# f <- list.files('/wynton/home/students/snanda/rds/bp205/analysis/survival/results/km_plots/') %>% str_replace('_km_plot\\.pdf','')
+# 
+# all_sig_set <- all_sig_set[!(names(all_sig_set) %in% f)]
+
+
 other_facets <- c('Cancer Type' , 'Cellularity' , 'Chemotherapy' ,'ER Status' , 'HER2 Status' , 'PR Status','Tumor Stage' , 'Age at Diagnosis' , 'Subtype')
 
 outdir <- '/wynton/home/students/snanda/rds/bp205/analysis/survival/results/'
-
 rm(data,hcc_sig_set,mda_sig_set,metadata)
 
+# ## testing:###############################################################
+# metagene <- all_sig_set$`HCC_6_vs_p-H_UP_FC_1`
+# ## Generate the dataset by scoring the metagene
+# test <- df %>%
+#   select_and_score_metagene(metagene,facets=other_facets) %>%
+#   stratify_activation(ntiles = 2,threshold = T)
+# 
+# ## Run Kaplan-Meir analysis
+# message('Running survival analysis')
+# km_fit <- survminer::surv_fit(survival::Surv(overall_survival_years, vital_status) ~ strata, data=test)
+# km_summary <- summary(coxph(Surv(overall_survival_years, vital_status) ~ strata,data=test))
+# km_pval <- c(survminer::surv_pvalue(km_fit)$pval,
+#              km_summary$conf.int[c(3,1,4)],
+#              km_fit$n)
+# names(km_pval) <- c('KM_pval','KM_HZ_0.95_lower','KM_HZ','KM_HZ_0.95_upper','n_low','n_high')
+# 
+# km_plt <- arrange_ggsurvplots(list(ggsurvplot(km_fit,                                                           ## High , low
+#                                               pval=T,conf.int = T,risk.table = T,surv.co,palette = c('#3BA805','#E8634A'),data = test)),
+#                               print=FALSE,ncol=1,nrow=1
+# )
+# 
+# 
+# ## Run COX anlaysis using continous activation as covariate
+# message('Running cox fit')
+# test$activation_Z <- c(scale(test$activation))
+# cox_fit <- coxph(Surv(overall_survival_years, vital_status) ~ activation_Z +`Chemotherapy` + Subtype + Cellularity, data=test,model = T)
+# cox_pval <- c(summary(cox_fit)$coef[,c(2,5)],recursive=T)
+# names(cox_pval) <- c(paste0('Cox_HZ_',rownames(summary(cox_fit)$coef)),paste0('Cox_pval_',rownames(summary(cox_fit)$coef)))
+# cox_plt <- suppressWarnings(ggforest(cox_fit,data=test))
+
+# 
+# 
+# 
 ###############################
 
 models <-parallel::mcmapply(FUN=score_stratify_fit_metagene,
                             metagene_name=names(all_sig_set),
                             metagene = all_sig_set,
                             ntiles=2,threshold=T,outdir = outdir,SIMPLIFY = F,
-                            MoreArgs = list(df=df,other_facets = other_facets),mc.cores = 25)
+                            MoreArgs = list(df=df,other_facets = other_facets),mc.cores = 9)
 
 models_df <- as_tibble(rownames_to_column(as.data.frame(do.call(rbind,models)))) %>% arrange(desc(KM_HZ))
 colnames(models_df)[1] <- 'signature'

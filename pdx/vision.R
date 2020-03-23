@@ -1,60 +1,6 @@
+source('/wynton/home/students/snanda/rds/bp205/analysis/common_functions.R')
 library(VISION)
-library(tidyverse)
-library(data.table)
 options(mc.cores=25)
-
-create_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
-  filenames <- stringr::str_sub(basename(DE_results),1,-5)
-  
-  allSigSets <- unlist(lapply(1:length(DE_results),function(f){
-    gmt <- data.table::fread(DE_results[f],sep=',')
-    sigData <- sign(gmt$logfoldchange)
-    names(sigData) <- gmt$genes
-    matched <- names(sigData) %in% ref_gene_set
-    
-    print(paste0('Unmatched ',f,' ',filenames[f],' ',sum(!matched)/nrow(gmt)))
-    
-    sigSets <- unlist(lapply(c(0,1,2),function(thresh){
-      fold_data <- sigData[abs(gmt$logfoldchange)>=thresh & matched]
-     
-      ## If the metagene is all -1s, then flip to positive
-      if(abs && all(fold_data==-1)){
-        fold_data <- abs(fold_data)
-      }
-      sig_set_name <- paste0(dataset,'_',filenames[f],'_FC_',thresh)
-      
-      a <- VISION::createGeneSignature(name = sig_set_name,sigData = fold_data)
-
-      retlist <- list(a)
-      names(retlist) <- sig_set_name
-      
-      return(retlist)
-    }))
-    return(sigSets)
-  }))
-  return(allSigSets)
-}
-
-h5read <- function(h5path){
-  hfile <- hdf5r::h5file(filename = h5path, mode = 'r')
-  
-  m <- as.matrix(Matrix::sparseMatrix(i=hfile[['X']][['indices']][]+1,
-                             p=hfile[['X']][['indptr']][],
-                             x=hfile[['X']][['data']][]
-  ))
-  hdf5r::h5close(hfile)
-  return(m)
-}
-
-h5read_umap <- function(h5path){
-  hfile <- hdf5r::h5file(h5path,mode = 'r')
-
-  umap <- as.data.frame(t(hfile[['obsm']][['X_umap']][,]))
-  
-  hdf5r::h5close(hfile)
-  return(umap)
-
-}
 
 ## read in the data
 pdx_exprmat <- h5read('/wynton/scratch/bp205/processed//PDX_adata.h5ad')
@@ -96,7 +42,5 @@ pdx_vis_result <- VISION::analyze(pdx_vis)
 pdx_vis_result<- addProjection(pdx_vis_result,"UMAP2",pdx_umap)
 save(pdx_vis_result,file = '/wynton/home/students/snanda/rds/bp205/analysis/pdx/PDX_agg_med_norm_all.rda',version = 2)
 
-
-VISION::viewResults(pdx_vis_result)
-
+load('/wynton/home/students/snanda/rds/bp205/analysis/pdx/PDX_agg_med_norm_all.rda')
 
