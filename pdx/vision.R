@@ -30,8 +30,10 @@ mda_DE_signatures <- create_signature_set('MDA',mda_DE_results,pdx_genes$V1,abs 
 hcc_mk_DE_signatures <- create_signature_set('HCC_MK',hcc_mk_DE_results,pdx_genes$V1,abs = F)
 
 all_DE_signatures <- c(mda_DE_signatures,hcc_mk_DE_signatures)
-## Load signature files by adding a sign to them 
+all_DE_signatures <- all_DE_signatures[sapply(all_DE_signatures,function(x){length(x@sigDict)})!=0]
 
+
+## Load signature files by adding a sign to them 
 pdx_vis <- VISION::Vision(data=pdx_exprmat,
                           signatures=all_DE_signatures,
                           sig_gene_threshold=0.005,

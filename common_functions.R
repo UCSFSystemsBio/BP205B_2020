@@ -8,7 +8,6 @@ library(gridExtra)
 library(readxl)
 library(HGNChelper)
 
-
 create_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
   filenames <- stringr::str_sub(basename(DE_results),1,-5)
   

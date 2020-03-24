@@ -163,20 +163,20 @@ hcc_mk_DE_results <- list.files('/wynton/scratch/bp205/signatures/BP205B_2020/DE
 mda_DE_results <- list.files('/wynton/scratch/bp205/signatures/BP205B_2020/DE_results/Final/',
                              recursive = T,full.names = T,pattern = '.csv')
 
-hcc_sig_set <- load_signature_set('HCC',hcc_mk_DE_results,colnames(df),abs = F)
+hcc_mk_sig_set <- load_signature_set('HCC_MK',hcc_mk_DE_results,colnames(df),abs = F)
 mda_sig_set <- load_signature_set('MDA',mda_DE_results,colnames(df),abs = T)
-all_sig_set <- c(mda_sig_set,hcc_sig_set)
+
+all_sig_set <- c(mda_sig_set,hcc_mk_sig_set)
 all_sig_set <- all_sig_set[sapply(all_sig_set,length) != 0]
 
-f <- list.files('/wynton/home/students/snanda/rds/bp205/analysis/survival/results/result_out//') %>% str_replace('_result_out\\.csv','')
+#f <- list.files('/wynton/home/students/snanda/rds/bp205/analysis/survival/results/result_out//') %>% str_replace('_result_out\\.csv','')
 # 
-all_sig_set <- all_sig_set[!(names(all_sig_set) %in% f)]
-
+# all_sig_set <- all_sig_set[!(names(all_sig_set) %in% f)]
 
 other_facets <- c('Cancer Type' , 'Cellularity' , 'Chemotherapy' ,'ER Status' , 'HER2 Status' , 'PR Status','Tumor Stage' , 'Age at Diagnosis' , 'Subtype')
 
 outdir <- '/wynton/home/students/snanda/rds/bp205/analysis/survival/results/'
-rm(data,hcc_sig_set,mda_sig_set,metadata)
+rm(data,hcc_mk_sig_set,mda_sig_set,metadata)
 
 # ## testing:###############################################################
 # metagene <- all_sig_set$`HCC_6_vs_p-H_UP_FC_1`
@@ -213,11 +213,11 @@ rm(data,hcc_sig_set,mda_sig_set,metadata)
 # 
 ###############################
 
-models <-mapply(FUN=score_stratify_fit_metagene,
+models <-parallel::mcmapply(FUN=score_stratify_fit_metagene,
                             metagene_name=names(all_sig_set),
                             metagene = all_sig_set,
                             ntiles=2,threshold=T,outdir = outdir,SIMPLIFY = F,
-                            MoreArgs = list(df=df,other_facets = other_facets))
+                            MoreArgs = list(df=df,other_facets = other_facets),mc.cores=20)
 
 models_files <- list.files('/wynton/home/students/snanda/rds/bp205/analysis/survival/results/result_out//',full.names = T)
 
