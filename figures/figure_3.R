@@ -114,7 +114,7 @@ plot_gene_expression <- function(gene,melted_df,outdir){
     theme(axis.text=element_text(color='black'))
   
   ggsave(plot = marker_plt ,
-         filename = paste0(outdir,'/f3_gene_expression_',gene,'_markers.pdf'),width = 5,height = 6)
+         filename = paste0(outdir,'/f3_gene_expression_',gene,'_markers.pdf'),width = 5,height = 4)
 
 }
 
