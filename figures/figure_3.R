@@ -72,6 +72,7 @@ plot_vision <- function(vis_df,pdx_sig,outdir){
    guides(colour = guide_legend(override.aes = list(size=3)))
  
  ggsave(plot = vision_plt,filename = paste0(outdir,'/f3_pdx_VISION_',pdx_sig,'.pdf'),width=8,height = 6)
+ ggsave(plot = vision_plt,filename = paste0(outdir,'/f3_pdx_VISION_',pdx_sig,'.svg'),width=8,height = 6)
  
 }
 
@@ -91,7 +92,8 @@ plot_gene_expression <- function(gene,melted_df,outdir){
     geom_violin() + facet_grid(~VISION_Clusters,scales = 'free_y')+
     theme_classic()+
     labs(x='Subpopulation',y='Expression')+
-    theme(axis.text.x = element_text(angle = 45,hjust = 1))
+    theme(axis.text.x = element_text(angle = 45,hjust = 1))+
+    ggtitle(gene)
   
   ggsave(plot = gene_expression_plt_1 ,
          filename = paste0(outdir,'/f3_gene_expression_',gene,'.pdf'),width = 12,height = 3)
@@ -111,7 +113,8 @@ plot_gene_expression <- function(gene,melted_df,outdir){
     scale_color_gradient(low='white',high='red')+
     theme_classic() +
     labs(x='Subpopulation',y='Leiden Cluster')+
-    theme(axis.text=element_text(color='black'))
+    theme(axis.text=element_text(color='black'),title = element_text(size = 10))+
+  ggtitle(gene)
   
   ggsave(plot = marker_plt ,
          filename = paste0(outdir,'/f3_gene_expression_',gene,'_markers.pdf'),width = 5,height = 4)
