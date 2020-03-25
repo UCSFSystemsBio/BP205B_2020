@@ -11,26 +11,38 @@ hcc_mk_umap <- as.matrix(data.table::fread('/wynton/scratch/bp205/signatures/BP2
 rownames(hcc_mk_umap) <- colnames(hcc_mk_cds_raw)
 
 hcc_mk_cds <- preprocess_cds(hcc_mk_cds_raw,norm_method = 'none')
-#plot_pc_variance_explained(hcc_mk_cds)
-# hcc_mk_cds2 <- reduce_dimension(hcc_mk_cds,max_components = 2,verbose = T)
+
+## insert hcc_mk_umap into the object
 hcc_mk_cds2 <- hcc_mk_cds
 reducedDims(hcc_mk_cds2)[['UMAP']]  <- hcc_mk_umap
-
+## cluster to get 2 partitions, 1 for distant p-L (cluster 9), and rest 
 hcc_mk_cds2 <- cluster_cells(hcc_mk_cds2,cluster_method = 'leiden',reduction_method = 'UMAP')
-## insert hcc_mk_umap into the object
+## Learn the graph with enough iterations for convergence
 hcc_mk_cds2 <- learn_graph(hcc_mk_cds2,close_loop = F,verbose = T,learn_graph_control = list(maxiter=500))
 
 ## Set root node as Y_25
 hcc_mk_cds2 <- order_cells(hcc_mk_cds2)
 
+
+hcc_leiden_coloring <- c('#1f77b4','#ff7f0e','#3bd7ff','#d62728','#aa40fc','#8c564b',
+                         '#e377c2','#b5bd61','#17becf','#aec7e8')
+
 hcc_mk_plt <- plot_cells(hcc_mk_cds2,
            color_cells_by = 'leiden',
            label_cell_groups = F,
            label_leaves = T,
-           label_branch_points = T,trajectory_graph_color = 'black',
-           cell_size = 2) #+ scale_color_manual(values = sample(div_pal))
+           label_branch_points = F,trajectory_graph_color = 'black',
+           cell_size = 0.5 ) +
+  scale_color_manual(values = hcc_leiden_coloring)+
+  theme(legend.title = element_text(color='white'))
+
+
+
 ggsave(plot=hcc_mk_plt,
-       '/wynton/home/students/snanda/rds/bp205/analysis/trajectory/HCC_MK_trajectory.pdf',width=5,height = 5)
+       '/wynton/home/students/snanda/rds/bp205/analysis/trajectory/HCC_MK_trajectory.pdf',width=6,height = 5)
+
+ggsave(plot=hcc_mk_plt,
+       '/wynton/home/students/snanda/rds/bp205/analysis/figures/figure_2/f2_HCC_MK_trajectory.pdf',width=6,height = 5)
 
 
 hcc_mk_principal_curve <- generate_principal_curve(hcc_mk_cds2)

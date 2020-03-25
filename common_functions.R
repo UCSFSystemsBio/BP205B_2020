@@ -40,12 +40,18 @@ create_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
   return(allSigSets)
 }
 
-load_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
+load_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T,sign=T){
   filenames <- stringr::str_sub(basename(DE_results),1,-5)
   
   allSigSets <- unlist(lapply(1:length(DE_results),function(f){
     gmt <- data.table::fread(DE_results[f],sep=',')
-    sigData <- sign(gmt$logfoldchange)
+    
+    if(sign==TRUE){
+      sigData <- sign(gmt$logfoldchange)
+    }else{
+      sigData <- gmt$logfoldchange
+    }
+    
     names(sigData) <- gmt$genes
     matched <- names(sigData) %in% ref_gene_set
     
@@ -55,7 +61,7 @@ load_signature_set <- function(dataset,DE_results,ref_gene_set,abs=T){
       fold_data <- sigData[abs(gmt$logfoldchange)>=thresh & matched]
       
       ## If the metagene is all -1s, then flip to positive
-      if(abs && all(fold_data==-1)){
+      if(abs && all(sign(fold_data)==-1)){
         fold_data <- abs(fold_data)
       }
       
@@ -161,3 +167,8 @@ get_node_df <- function(cds,reduction_method='UMAP'){
     return(ica_space_df)
 }
 
+
+div_pal <- c("#89C5DA", "#DA5724", "#74D944", "#CE50CA", "#3F4921", "#C0717C", "#CBD588", "#5F7FC7",
+             "#673770","#8A7C64" , "#38333E", "#508578", "#D7C1B1", "#689030", "#AD6F3B", "#CD9BCD",
+             "#D14285", "#6DDE88", "#652926", "#7FDCC0", "#C84248", "#8569D5", "#5E738F", "#D1A33D",
+             "#D3D93E", "#599861")
